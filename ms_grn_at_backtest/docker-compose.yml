@@ -1,0 +1,28 @@
+version: '3.8'
+services:
+  ms-grn-at-backtest-app:
+    container_name: ms-grn-at-backtest
+    restart: always
+    env_file: .env
+    build: .
+    networks:
+      - db_network
+      - web_network
+  nginx-grn-at-backtest:
+    container_name: nginx-grn-at-backtest
+    restart: always
+    image: "nginx:latest"
+    ports:
+      - "31114:31114"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+    networks:
+      - web_network
+    depends_on: 
+      - ms-grn-at-backtest-app
+networks:
+  db_network:
+    driver: bridge
+  web_network:
+    driver: bridge
+ 
