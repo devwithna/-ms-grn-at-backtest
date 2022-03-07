@@ -1,59 +1,114 @@
 # -*- coding: utf-8 -*-
-import requests
 import json
 import numpy as np
+from . import tradeUtils
 
 
+class VBTObject(object):
+
+    # o : Open
+    # c : Close
+    # h : High
+    # l : Low
+    # tt : Trailing Trigger
+    # ts : Trailing Stop
+    # sl : Stop loss
+
+    def __init__(self, o, c, h, l, v, k, tt, ts, sl):
+        self.o = o
+        self.c = c
+        self.h = h
+        self.l = l
+        self.v = v
+        self.k = k
+        self.tt = tt
+        self.ts = ts
+        self.sl = sl
+        self.buyPrice = 0
+        self.sellPrice = 0
+        self.qty = 0
+        self.feeRatio = 0.0005
+        self.slippage = 0.0005
+
+    def getPredictBuyPrice(self):
+        return tradeUtils.get_tick_size(self.o + (self.h - self.l) * self.k)
+
+    def getTargetSellPrice(self, startPrice):
+        return tradeUtils.get_tick_size(startPrice *(1 + self.tt + self.ts))
+
+    def getStopLossPrice(self, startPrice):
+        return tradeUtils.get_tick_size(startPrice * (1 - self.sl))
+
+    def getRorValue(self, current, targetPrice):
+        # Determine Buy and sell
+        self.balance = current
+        # Buy Condition 
+        if (self.h > targetPrice):
+            self.buyPrice = targetPrice
+            self.qty = round((current / ((1+self.slippage) + (1+self.feeRatio)) * targetPrice), 2)
+            
+            self.balance = current - (((1+self.slippage) + (1+self.feeRatio)) * self.buyPrice * self.qty)
+        else:
+            print ("Trade Type : No Trade")
+
+            return self.balance
+        
+        # Sell Condition - 1. Arrive target price
+        targetSellPrice = self.getTargetSellPrice(targetPrice)
+        if (self.h > targetSellPrice):
+            print ("Trade Type : Match Target")
+
+            krwVal = targetSellPrice * self.qty * ((1 - self.feeRatio) + (1 - self.slippage))
+            self.balance += krwVal;
+        else:
+            # check stop loss
+            slPrice = self.getStopLossPrice(targetPrice)
+            if (self.l < slPrice):
+                print ("Trade Type : Stop Loss ")
+                krwVal = slPrice * self.qty * ((1 - self.feeRatio) + (1 - self.slippage))
+                self.balance += krwVal
+            else:
+                # Sell Close Price
+                print ("Trade Type : Close Price")
+                krwVal = self.c * self.qty * ((1 - self.feeRatio) + (1 - self.slippage))
+                self.balance += krwVal
+                
+        print ("Balance : " + str(self.balance))
+        return self.balance; 
+            
 class BackTestingService(object):
-    def __init__(self):
+    def __init__(self, reqLib):
         self.baseUrl = "http://localhost:5003"
+        self.reqLib = reqLib
         pass
 
-    def get_backTesting_result(self, ticker, days, k):
+    def get_backTesting_result(self, initVal, ticker, days, k, tt, ts, sl):
 
-        r = requests.get(
-            self.baseUrl + "/get_ohlcv?ticker=%s&days=%d" % (ticker, days))
-
-        print (r.json())
-
-        rVal = json.loads(r.json())
-        print (type(rVal))
-        print (rVal['high'])
-
-        dfHigh = np.array([])
-        dfLow = np.array([])
-        dfOpen = np.array([])        
-        dfClose = np.array([])
-
-        for high in rVal['high'].values():
-            dfHigh = np.append(dfHigh, high)     
-        print (dfHigh)
+        apiUrl = self.baseUrl + \
+            ("/get_ohlcv?ticker=%s&days=%d" % (ticker, days))
+        rVal = self.reqLib.get(apiUrl)
+        ## Create Models 
         
-        for low in rVal['low'].values():
-            dfLow = np.append(dfLow, low)     
-        print (dfLow)
-
-        for open in rVal['open'].values():
-            dfOpen = np.append(dfOpen, open)     
-        print (dfOpen)
+        vbtModels = []
         
-        for close in rVal['close'].values():
-            dfClose = np.append(dfClose, close)     
-        print (dfClose)
+        for idx in range(len(list(rVal['high'].values()))):
+            o = list(rVal['open'].values())[idx]
+            c = list(rVal['close'].values())[idx]
+            h = list(rVal['high'].values())[idx]
+            l = list(rVal['low'].values())[idx]
+            v = list(rVal['volume'].values())[idx]
 
-        # 변동폭 * k 계산, (고가 - 저가) * k값
-        dfRange = (dfHigh - dfLow) * k
+            vbtModel = VBTObject(o,c, h, l, v, k, tt, ts, sl)
+            vbtModels.append(vbtModel)
 
-        # target(매수가), range 컬럼을 한칸씩 밑으로 내림(.shift(1))
-        dfTarget = dfOpen + np.roll(dfRange, 1)
-        
-        # ror(수익률), np.where(조건문, 참일때 값, 거짓일때 값)
-        dfRor = np.where(dfHigh > dfTarget, dfClose / dfTarget, 1)
+        curVal = initVal
+        for modelIdx in range(len(vbtModels)):
+            if (modelIdx == 0):
+                continue
+            
+            pbPrice = vbtModels[modelIdx - 1].getPredictBuyPrice()
+            curVal = vbtModels[modelIdx].getRorValue(curVal, pbPrice)
+            
+        mdd = ((curVal - initVal) / initVal) * 100            
 
-        # 누적 곱 계산(cumprod) => 누적 수익률
-        dfHpr = dfRor.cumprod()
-
-        # Draw Down 계산 (누적 최대 값과 현재 hpr 차이 / 누적 최대값 * 100)
-        dfDd = ((np.maximum.accumulate(dfHpr) - dfHpr) / np.maximum.accumulate(dfHpr)) * 100
-
-        return {'Mdd': dfDd.max()}
+        return {'initVal': initVal, 'testVal': curVal, 'Mdd': mdd}
