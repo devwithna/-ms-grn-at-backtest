@@ -20,14 +20,22 @@ class BackTestingCase(unittest.TestCase):
         
         self.assertTrue(len(res['open']) == 7)
         # self.assertTrue(res == 'test', 'res value is ' + res)
+
+    def test_mockDataLoadTimeCandle(self):
+        mockReq = mockRequests.MockRequests()
+
+        res = mockReq.get("get_ohlcv_time_candle")
         
+        self.assertEqual(len(res['open']), 4675, '# of open : %d' % len(res['open']))
+        # self.assertTrue(res == 'test', 'res value is ' + res)
+
     def test_backtesting(self):
         mockObj = backTestingService.BackTestingService(mockRequests.MockRequests())
         
         res = mockObj.get_backTesting_result(1000000, 'KRW-ETH', 7, 0.2, 0.01, 0.015, 0.01)
-        self.assertTrue(res['Mdd'] == 1.393, 'res value is ' + str(res['Mdd']))
+        self.assertTrue(res['Mdd'] == -0.7678, 'res value is ' + str(res['Mdd']))
         self.assertEqual(res['initVal'], 1000000)
-        self.assertEqual(res['testVal'], 1013930.0)
+        self.assertEqual(res['testVal'], 992322)
         
     def test_CalcTradeModel_Case_NotBuy(self):
         mockModel = backTestingService.VBTObject(3383000, 3218000, 3383000, 3166000, 184000675861, 0.2, 0.01, 0.015, 0.01)
@@ -55,7 +63,7 @@ class BackTestingCase(unittest.TestCase):
         self.assertEqual(3477000, ptsPrice, "Trailing Traget Price is " + str(ptsPrice))
         self.assertEqual(3401000, slPrice, "Stop loss Price is " + str(slPrice))
         
-        self.assertEqual(1011890.0, expectedRorVal, "Ror Value is " + str(expectedRorVal))
+        self.assertEqual(1000862, expectedRorVal, "Ror Value is " + str(expectedRorVal))
         
     def test_CalcTradeModel_Case_Stoploss(self):
         mockModel = backTestingService.VBTObject(3373000, 3218000, 3474000, 3166000, 184000675861, 0.2, 0.005, 0.007, 0.01)
@@ -69,7 +77,7 @@ class BackTestingCase(unittest.TestCase):
         self.assertEqual(3475000, ptsPrice, "Trailing Traget Price is " + str(ptsPrice))
         self.assertEqual(3399000, slPrice, "Stop loss Price is " + str(slPrice))
         
-        self.assertEqual(989850.0, expectedRorVal, "Ror Value is " + str(expectedRorVal))
+        self.assertEqual(978980, expectedRorVal, "Ror Value is " + str(expectedRorVal))
         
     def test_CalcTradeModel_Case_NotArrivedTarget(self):
         mockModel = backTestingService.VBTObject(3350000, 3345000, 3452000, 3343000, 184000675861, 0.2, 0.01, 0.015, 0.01)
@@ -83,4 +91,26 @@ class BackTestingCase(unittest.TestCase):
         self.assertEqual(3455000, ptsPrice, "Trailing Traget Price is " + str(ptsPrice))
         self.assertEqual(3337000, slPrice, "Stop loss Price is " + str(slPrice))
         
-        self.assertEqual(992200.0, expectedRorVal, "Ror Value is " + str(expectedRorVal))
+        self.assertEqual(981432, expectedRorVal, "Ror Value is " + str(expectedRorVal))
+        
+        
+    def test_CalcTradeModel_NewCase_StepSell(self):
+        mockObj = backTestingService.BackTestingService(mockRequests.MockRequests())
+        
+        # res = mockObj.get_new_backTesting_result(1000000, 'KRW-BTC', 150, 0.2, 0.01, 0.01, 0.01, 24)
+        # res = mockObj.get_new_backTesting_result(1000000, 'KRW-BTC', 150, 0.3, 0.01, 0.01, 0.01, 24)
+        # res = mockObj.get_new_backTesting_result(1000000, 'KRW-BTC', 150, 0.4, 0.01, 0.01, 0.01, 24)
+        # res = mockObj.get_new_backTesting_result(1000000, 'KRW-BTC', 150, 0.5, 0.01, 0.01, 0.01, 24)
+        
+        
+        res = mockObj.get_new_backTesting_result(3000000, 'KRW-BTC', 150, 0.3, 0.9, 0.00, 0.9, 24)
+        # print ("#######################################################################################")
+        # res = mockObj.get_new_backTesting_result(3000000, 'KRW-BTC', 150, 0.3, 0.02, 0.02, 0.01, 12)
+        # print ("#######################################################################################")
+        # res = mockObj.get_new_backTesting_result(3000000, 'KRW-BTC', 150, 0.3, 0.02, 0.02, 0.01, 8)
+
+
+        
+        self.assertTrue(res['Mdd'] == -51.575300000000006, 'Mdd value is ' + str(res['Mdd']))
+        # self.assertEqual(res['initVal'], 1000000)
+        # self.assertEqual(res['testVal'], 992241)
