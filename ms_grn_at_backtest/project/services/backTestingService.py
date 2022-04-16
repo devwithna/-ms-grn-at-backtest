@@ -8,21 +8,6 @@ from project.services.calcService import CalcService
 import datetime
 import time
 
-class TestModel(object):
-    def __init__(self, ol, cl, hl, ll, vl):
-        self.ol = ol
-        self.cl = cl
-        self.hl = hl
-        self.ll = ll
-        self.vl = vl
-
-        self.isBuyied = False
-        self.isSelled = False
-
-    def test(self, predictBuyPrice, predictSellPrices):
-        pass
-
-
 class NewVBTObject(object):
 
     # o : Open
@@ -68,8 +53,7 @@ class NewVBTObject(object):
         halfLen = int(len(self.h)/2)
         startPrice = self.o[halfLen]
         modKValue = self.getAppliedKValue()
-        return tradeUtils.get_tick_size(startPrice - modKValue)
-        # return tradeUtils.get_tick_size(startPrice + modKValue)
+        return tradeUtils.get_tick_size(startPrice + modKValue)
 
     def getTargetSellPrice(self, startPrice):
         return tradeUtils.get_tick_size(startPrice * (1 + self.tt + self.ts))
@@ -78,12 +62,10 @@ class NewVBTObject(object):
         return tradeUtils.get_tick_size(startPrice * (1 + self.tt))
 
     def getStopLossPrice(self, startPrice):
-        # print ("StartPrice : %d :: StopLossRatio : %f" % (startPrice, self.sl))
         return tradeUtils.get_tick_size(startPrice * (1 - self.sl))
 
     def saveDebugRes(self, res):
         halfLen = int(len(self.h)/2)
-        # print (int(self.st[halfLen]))
         strTime = self.st[halfLen]
         self.debugStr = ("%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d" % (strTime, res["High"], res["Low"], res["Stride"], res["ModKValue"], res["TargetPrice"], res["FirstSellPrice"], res["SecondSellPrice"], res["StopPrice"], res["Open"], res["Close"], res["Buy"], res["FirstSell"], res["SecondSell"], res["StopLoss"],
                res["CloseSell"], res["Balance"], res["BuyIdx"], res["SellIdx"], res["StopIdx"]))
@@ -166,7 +148,6 @@ class NewVBTObject(object):
                 self.balance += sellRes["balance"]
 
         res["Balance"] = self.balance
-        print ("#######################################################")
         self.saveDebugRes(res);
         return self.balance
 
@@ -235,7 +216,6 @@ class BackTestingService(object):
         for modelIdx in range(len(vbtModels)):
             curVal = vbtModels[modelIdx].getRorValue(curVal)
             debugStr.append(vbtModels[modelIdx].getDebugRes());
-
         self.exportCSV(debugStr)
         mdd = ((curVal - initVal) / initVal) * 100
         return {'initVal': initVal, 'testVal': curVal, 'Mdd': mdd}
