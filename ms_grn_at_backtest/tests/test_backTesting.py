@@ -26,7 +26,7 @@ class BackTestingCase(unittest.TestCase):
 
         res = mockReq.get("get_ohlcv_time_candle")
         
-        self.assertEqual(len(res['open']), 4675, '# of open : %d' % len(res['open']))
+        self.assertEqual(len(res['open']), 4795, '# of open : %d' % len(res['open']))
         # self.assertTrue(res == 'test', 'res value is ' + res)
 
     def test_backtesting(self):
@@ -97,20 +97,6 @@ class BackTestingCase(unittest.TestCase):
     def test_CalcTradeModel_NewCase_StepSell(self):
         mockObj = backTestingService.BackTestingService(mockRequests.MockRequests())
         
-        # res = mockObj.get_new_backTesting_result(1000000, 'KRW-BTC', 150, 0.2, 0.01, 0.01, 0.01, 24)
-        # res = mockObj.get_new_backTesting_result(1000000, 'KRW-BTC', 150, 0.3, 0.01, 0.01, 0.01, 24)
-        # res = mockObj.get_new_backTesting_result(1000000, 'KRW-BTC', 150, 0.4, 0.01, 0.01, 0.01, 24)
-        # res = mockObj.get_new_backTesting_result(1000000, 'KRW-BTC', 150, 0.5, 0.01, 0.01, 0.01, 24)
-        
-        
-        res = mockObj.get_new_backTesting_result(3000000, 'KRW-BTC', 150, 0.3, 0.9, 0.00, 0.9, 24)
-        # print ("#######################################################################################")
-        # res = mockObj.get_new_backTesting_result(3000000, 'KRW-BTC', 150, 0.3, 0.02, 0.02, 0.01, 12)
-        # print ("#######################################################################################")
-        # res = mockObj.get_new_backTesting_result(3000000, 'KRW-BTC', 150, 0.3, 0.02, 0.02, 0.01, 8)
-
-
-        
+        res = mockObj.get_new_backTesting_result(3000000, 'KRW-ETH', 200, 0.5, 0.00, 0.02, 0.01, 24)
+   
         self.assertTrue(res['Mdd'] == -51.575300000000006, 'Mdd value is ' + str(res['Mdd']))
-        # self.assertEqual(res['initVal'], 1000000)
-        # self.assertEqual(res['testVal'], 992241)

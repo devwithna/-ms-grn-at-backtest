@@ -5,8 +5,10 @@ import math
 
 class CalcService(object):
     def __init__(self):
-        self.feeRatio = 0.005  # Fee 0.5%
-        self.slippage = 0.0005  # Slippage 0.05%
+        # self.feeRatio = 0.0005  # Fee 0.05%
+        self.feeRatio = 0.0005  # Fee 0.05%
+        self.slippage = 0.00005  # Slippage 0.05%
+        # self.slippage = 0.00005  # Slippage 0.05%
         # self.feeRatio = 0.005  # Fee 0.5%
         # self.slippage = 0.0005  # Slippage 0.05%
 
@@ -37,4 +39,4 @@ class CalcService(object):
         return (1 + self.feeRatio + slippage)
     
     def getGeneralSellFee(self, slippage = 0):
-        return (1 - self.feeRatio - slippage)
+        return (1 - (self.feeRatio + slippage))

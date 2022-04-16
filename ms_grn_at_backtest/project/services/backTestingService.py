@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 import json
+from mimetypes import init
 # from tkinter import ttk
 import numpy as np
 from . import tradeUtils
 from project.services.calcService import CalcService
-
+import datetime
+import time
 
 class TestModel(object):
     def __init__(self, ol, cl, hl, ll, vl):
@@ -31,7 +33,8 @@ class NewVBTObject(object):
     # ts : Trailing Stop
     # sl : Stop loss
 
-    def __init__(self, o, c, h, l, v, k, tt, ts, sl):
+    def __init__(self, st, o, c, h, l, v, k, tt, ts, sl):
+        self.st = st
         self.o = o
         self.c = c
         self.h = h
@@ -49,20 +52,24 @@ class NewVBTObject(object):
         self.isNotBuyed = True
         self.isNotFirstSelled = True
         self.isNotSecondSelled = True
+
         self.calcSvc = CalcService()
+        
+        self.debugStr = ""
+
+    def getAppliedKValue(self):
+        halfLen = int(len(self.h)/2 - 1)
+        highPrice = max(self.h[0:halfLen])
+        lowPrice = min(self.l[0:halfLen])
+
+        return tradeUtils.get_tick_size((highPrice - lowPrice) * self.k)
 
     def getPredictBuyPrice(self):
-        
-        halfLen = int(len(self.h)/2 -1)
-        startPrice = self.o[halfLen + 1]
-        highPrice = max(self.h[0:halfLen])
-        lowPrice = min(self.l[0:halfLen])  
-        
-        # print("Start Price : %d" % startPrice)
-        # print("high Price : %d" % highPrice)
-        # print("low Price : %d" % lowPrice)
-        
-        return tradeUtils.get_tick_size(startPrice + (highPrice - lowPrice) * self.k)
+        halfLen = int(len(self.h)/2)
+        startPrice = self.o[halfLen]
+        modKValue = self.getAppliedKValue()
+        return tradeUtils.get_tick_size(startPrice - modKValue)
+        # return tradeUtils.get_tick_size(startPrice + modKValue)
 
     def getTargetSellPrice(self, startPrice):
         return tradeUtils.get_tick_size(startPrice * (1 + self.tt + self.ts))
@@ -74,65 +81,79 @@ class NewVBTObject(object):
         # print ("StartPrice : %d :: StopLossRatio : %f" % (startPrice, self.sl))
         return tradeUtils.get_tick_size(startPrice * (1 - self.sl))
 
-    def printRes(self, res):
-        print ("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d" % (res["TargetPrice"],res["Buy"],res["FirstSell"],res["SecondSell"],res["StopLoss"],res["CloseSell"],res["Balance"], res["BuyIdx"], res["SellIdx"], res["StopIdx"], res["High"], res["Low"], res["Stride"]))
+    def saveDebugRes(self, res):
+        halfLen = int(len(self.h)/2)
+        # print (int(self.st[halfLen]))
+        strTime = self.st[halfLen]
+        self.debugStr = ("%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d" % (strTime, res["High"], res["Low"], res["Stride"], res["ModKValue"], res["TargetPrice"], res["FirstSellPrice"], res["SecondSellPrice"], res["StopPrice"], res["Open"], res["Close"], res["Buy"], res["FirstSell"], res["SecondSell"], res["StopLoss"],
+               res["CloseSell"], res["Balance"], res["BuyIdx"], res["SellIdx"], res["StopIdx"]))
+
+    def getDebugRes(self):
+        return self.debugStr;
+
+    def genDebugStr(self):
+        halfLen = int(len(self.h)/2)
+        startPrice = self.o[halfLen]
+        
+        closePrice = self.c[len(self.c) -1 ]
+        pHighPrice = max(self.h[0:halfLen-1])
+        pLowPrice = min(self.l[0:halfLen-1])
+        stride = (pHighPrice - pLowPrice)
+        targetPrice = self.getPredictBuyPrice()
+        return {"High": max(self.h[halfLen:len(self.h)-1]), "Low": min(self.l[halfLen:len(self.h)-1]), "Stride": stride, "ModKValue": self.getAppliedKValue(),
+                "TargetPrice": self.getPredictBuyPrice(), "FirstSellPrice": self.getFirstSellPrice(targetPrice), "SecondSellPrice": self.getTargetSellPrice(targetPrice), "StopPrice":self.getStopLossPrice(targetPrice), "Open": startPrice, "Close":closePrice, "Buy": 0, "FirstSell": 0, "SecondSell": 0, "StopLoss": 0,
+                "CloseSell": 0, "Balance": 0, "BuyIdx": 0, "SellIdx": 0, "StopIdx": 0}
 
     def getRorValue(self, current):
         # Determine Buy and sell
         self.balance = current
         halfLen = int(len(self.h)/2)
-        # halfLen = int(len(self.h)/2 -1)
-        # startPrice = self.o[halfLen + 1]
-        highPrice = max(self.h[halfLen:-1])
-        lowPrice = min(self.l[halfLen:-1]) 
-        
-        pHighPrice = max(self.h[0:halfLen])
-        pLowPrice = min(self.l[0:halfLen])  
-        stride = (pHighPrice - pLowPrice)
+
         # Buy Condition
-        res = {"TargetPrice":0, "Buy":0,"FirstSell":0,"SecondSell":0,"StopLoss":0,"CloseSell":0, "Balance":0, "BuyIdx":0, "SellIdx":0, "StopIdx": 0, "High":highPrice, "Low":lowPrice, "Stride":stride }
         targetPrice = self.getPredictBuyPrice()
         targetFirstSellPrice = self.getFirstSellPrice(targetPrice)
         targetSecondSellPrice = self.getTargetSellPrice(targetPrice)
         slPrice = self.getStopLossPrice(targetPrice)
-        res["TargetPrice"] =  targetPrice
-        for idx in range(len(self.h[halfLen:-1]), len(self.h)):
+
+        res = self.genDebugStr()
+
+        for idx in range(halfLen, len(self.h)):
             if self.h[idx] < targetPrice and self.isNotBuyed:
-                continue            
-            
+                continue
+
             if (self.isNotBuyed):
                 self.isNotBuyed = False
                 self.buyPrice = targetPrice
-                buyRes = self.calcSvc.calc_marketTradeBuy(
-                    self.balance, self.buyPrice)
+                buyRes = self.calcSvc.calc_marketTradeBuy(self.balance, self.buyPrice)
 
                 self.qty = buyRes["qty"]
                 self.balance = current - (buyRes["balance"])
                 res["Buy"] = buyRes["balance"]
                 res["BuyIdx"] = idx
-                        
+
             # Sell Condition - 1. Arrive target price
             if (self.h[idx] > targetFirstSellPrice and self.isNotFirstSelled):
-                #print ("Trade Type : Match Target")
-                sellRes = self.calcSvc.calc_marketTradeSell(
-                self.qty, targetFirstSellPrice)
-                self.balance += sellRes["balance"]
                 self.isNotFirstSelled = False
-                res["FirstSell"] = sellRes["balance"]
-                res["SellIdx"] = idx
 
-                break
-                
             if (self.h[idx] > targetSecondSellPrice and not(self.isNotFirstSelled) and self.isNotSecondSelled):
+                
                 sellRes = self.calcSvc.calc_marketTradeSell(self.qty, targetSecondSellPrice)
+
+                print ("Activate Second : %f, %d" % (self.qty, sellRes["balance"]))
+
                 self.balance += sellRes["balance"]
                 self.isNotSecondSelled = False
+                self.qty = sellRes["qty"]
                 res["SecondSell"] = sellRes["balance"]
+                res["SellIdx"] = idx
                 break
 
             # check stop loss
             if (self.l[idx] < slPrice and not (self.isNotBuyed)):
+                print ("Idx : %d ST : %s Low Price %d :: StopLoss : %d" % (idx, self.st[idx], self.l[idx], slPrice))
+                
                 sellRes = self.calcSvc.calc_marketTradeSell(self.qty, slPrice)
+                print ("Activate Stoploss : %f, %d" % (self.qty, sellRes["balance"]))
                 self.balance += sellRes["balance"]
                 res["StopLoss"] = sellRes["balance"]
                 res["StopIdx"] = idx
@@ -141,93 +162,13 @@ class NewVBTObject(object):
             if (idx == len(self.h) - 1 and (self.isNotFirstSelled or self.isNotSecondSelled) and not(self.qty == 0)):
                 sellRes = self.calcSvc.calc_marketTradeSell(self.qty, self.c[-1])
                 res["CloseSell"] = sellRes["balance"]
+                res["StopIdx"] = idx
                 self.balance += sellRes["balance"]
 
         res["Balance"] = self.balance
-        self.printRes(res)
+        print ("#######################################################")
+        self.saveDebugRes(res);
         return self.balance
-
-class VBTObject(object):
-
-    # o : Open
-    # c : Close
-    # h : High
-    # l : Low
-    # tt : Trailing Trigger
-    # ts : Trailing Stop
-    # sl : Stop loss
-
-    def __init__(self, o, c, h, l, v, k, tt, ts, sl):
-        self.o = o
-        self.c = c
-        self.h = h
-        self.l = l
-        self.v = v
-        self.k = k
-        self.tt = tt
-        self.ts = ts
-        self.sl = sl
-        self.buyPrice = 0
-        self.sellPrice = 0
-        self.qty = 0
-
-        self.calcSvc = CalcService()
-
-    def getPredictBuyPrice(self):
-        return tradeUtils.get_tick_size(self.o + (self.h - self.l) * self.k)
-
-    def getTargetSellPrice(self, startPrice):
-        return tradeUtils.get_tick_size(startPrice * (1 + self.tt + self.ts))
-
-    def getStopLossPrice(self, startPrice):
-        return tradeUtils.get_tick_size(startPrice * (1 - self.sl))
-
-    def getRorValue(self, current, targetPrice):
-        # Determine Buy and sell
-        self.balance = current
-        # Buy Condition
-        if (self.h > targetPrice):
-            self.buyPrice = targetPrice
-
-            buyRes = self.calcSvc.calc_marketTradeBuy(
-                self.balance, self.buyPrice)
-
-            self.qty = buyRes["qty"]
-            self.balance = current - (buyRes["balance"])
-
-            # self.qty = round((current / ((1+self.slippage) + (1+self.feeRatio)) * targetPrice), 2)
-            # self.balance = current - (((1+self.slippage) + (1+self.feeRatio)) * self.buyPrice * self.qty)
-        else:
-            #print ("Trade Type : No Trade")
-
-            return self.balance
-
-        # Sell Condition - 1. Arrive target price
-        targetSellPrice = self.getTargetSellPrice(targetPrice)
-        if (self.h > targetSellPrice):
-            #print ("Trade Type : Match Target")
-            sellRes = self.calcSvc.calc_marketTradeSell(
-                self.qty, targetSellPrice)
-            self.balance += sellRes["balance"]
-        else:
-            # check stop loss
-            slPrice = self.getStopLossPrice(targetPrice)
-            if (self.l < slPrice):
-                # print ("Trade Type : Stop Loss ")
-                # krwVal = slPrice * self.qty * ((1 - self.feeRatio) + (1 - self.slippage))
-
-                sellRes = self.calcSvc.calc_marketTradeSell(self.qty, slPrice)
-                self.balance += sellRes["balance"]
-            else:
-                # Sell Close Price
-                #print ("Trade Type : Close Price")
-                # krwVal = self.c * self.qty * ((1 - self.feeRatio) + (1 - self.slippage))
-                sellRes = self.calcSvc.calc_marketTradeSell(self.qty, self.c)
-                self.balance += sellRes["balance"]
-
-        # print ("Balance : " + str(self.balance))
-        return self.balance
-
 
 class BackTestingService(object):
     def __init__(self, reqLib):
@@ -235,65 +176,66 @@ class BackTestingService(object):
         self.reqLib = reqLib
         pass
 
-    def get_backTesting_result(self, initVal, ticker, days, k, tt, ts, sl):
+    def exportCSV(self, res):
+        # First Row
+        f = open("TestResult.csv", "w")
+        f.write("StartTime,High,Low,Stride,ModKValue,TargetPrice,FirstSellPrice,SecondSellPrice,StopPrice,Open,Close,Buy,FirstSell,SecondSell,StopLoss,CloseSell,Balance,BuyIdx,SellIdx,StopIdx\n")
+        
+        for item in res:
+            f.write(item)
+            f.write('\n')
+            
+        f.close()
+            
 
-        apiUrl = self.baseUrl + \
-            ("/get_ohlcv?ticker=%s&days=%d" % (ticker, days))
-        rVal = self.reqLib.get(apiUrl)
-        # Create Models
-
-        vbtModels = []
-
-        for idx in range(len(list(rVal['high'].values()))):
-            o = list(rVal['open'].values())[idx]
-            c = list(rVal['close'].values())[idx]
-            h = list(rVal['high'].values())[idx]
-            l = list(rVal['low'].values())[idx]
-            v = list(rVal['volume'].values())[idx]
-
-            vbtModel = VBTObject(o, c, h, l, v, k, tt, ts, sl)
-            vbtModels.append(vbtModel)
-
-        curVal = initVal
-        for modelIdx in range(len(vbtModels)):
-            if (modelIdx == 0):
-                continue
-
-            pbPrice = vbtModels[modelIdx - 1].getPredictBuyPrice()
-            curVal = vbtModels[modelIdx].getRorValue(curVal, pbPrice)
-
-        mdd = ((curVal - initVal) / initVal) * 100
-
-        return {'initVal': initVal, 'testVal': curVal, 'Mdd': mdd}
-
-    def get_new_backTesting_result(self, initVal, ticker, days, k, tt, ts, sl, stride):
+    def get_backTesting_result(self, initVal, ticker, days, k, tt, ts, sl, stride):
         apiUrl = self.baseUrl + \
             ("/get_ohlcv_time_candle?ticker=%s&days=%d" % (ticker, days))
         rVal = self.reqLib.get(apiUrl)
+     
         # Create Models
-
         vbtModels = []
-        openList = list(rVal['open'].values())
-        closeList = list(rVal['close'].values())
-        highList = list(rVal['high'].values())        
-        lowList = list(rVal['low'].values())        
-        volumeList = list(rVal['volume'].values())
-        
-        for idx in range(0, (days - 1) * int(24 / stride)):
-            ol = openList[idx*stride:idx*stride + stride*2]
-            cl = closeList[idx*stride:idx*stride + stride*2]
-            hl = highList[idx*stride:idx*stride + stride*2]
-            ll = lowList[idx*stride:idx*stride + stride*2]
-            vl = volumeList[idx*stride:idx*stride + stride*2]
+        timeList = list(rVal['open'].keys())
 
-            vbtModel = NewVBTObject(ol, cl, hl, ll, vl, k, tt, ts, sl)
-            vbtModels.append(vbtModel)
+        # Default TimeStride 1 Hour
+        stideTimeStamp = stride * 3600
+        initTime = time.mktime(datetime.datetime.strptime(timeList[0], "%Y-%m-%dT%H:%M:%S").timetuple())
+        stampIdx = 0;
+        for idx in range(0, (days - 1)):
+            # Collect TimeStamp
+            # Time Stride Day 0
+            # Test and Train stide 2 
+            dstTime =  initTime + (2 * stideTimeStamp)
+   
+            st = []         
+            for timeItem in timeList[stampIdx:]:
+                stamp = time.mktime(datetime.datetime.strptime(timeItem, "%Y-%m-%dT%H:%M:%S").timetuple())
+                if (stamp >= initTime and stamp < dstTime):
+                    st.append(timeItem)            
+
+            ol = []
+            cl = []
+            hl = []
+            ll = []
+            vl = []
+            for timeItem in st:
+                ol.append(rVal['open'][timeItem])
+                cl.append(rVal['close'][timeItem])
+                hl.append(rVal['high'][timeItem])
+                ll.append(rVal['low'][timeItem])
+                vl.append(rVal['volume'][timeItem])
+
+            initTime = initTime + stideTimeStamp
             
+            vbtModel = NewVBTObject(st, ol, cl, hl, ll, vl, k, tt, ts, sl)
+            vbtModels.append(vbtModel)
+
         curVal = initVal
+        debugStr = [];
         for modelIdx in range(len(vbtModels)):
             curVal = vbtModels[modelIdx].getRorValue(curVal)
-            # print  ("###############################Model Indx %d ######################################" % modelIdx)
+            debugStr.append(vbtModels[modelIdx].getDebugRes());
 
+        self.exportCSV(debugStr)
         mdd = ((curVal - initVal) / initVal) * 100
         return {'initVal': initVal, 'testVal': curVal, 'Mdd': mdd}
-
