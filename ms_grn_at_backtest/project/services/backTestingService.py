@@ -8,7 +8,7 @@ from project.services.calcService import CalcService
 import datetime
 import time
 
-class NewVBTObject(object):
+class VBTObject(object):
 
     # o : Open
     # c : Close
@@ -208,7 +208,7 @@ class BackTestingService(object):
 
             initTime = initTime + stideTimeStamp
             
-            vbtModel = NewVBTObject(st, ol, cl, hl, ll, vl, k, tt, ts, sl)
+            vbtModel = VBTObject(st, ol, cl, hl, ll, vl, k, tt, ts, sl)
             vbtModels.append(vbtModel)
 
         curVal = initVal
