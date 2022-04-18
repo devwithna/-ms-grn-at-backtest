@@ -43,7 +43,7 @@ class VBTObject(object):
         self.debugStr = ""
 
     def getAppliedKValue(self):
-        halfLen = int(len(self.h)/2 - 1)
+        halfLen = int(len(self.h)/2)
         highPrice = max(self.h[0:halfLen])
         lowPrice = min(self.l[0:halfLen])
 
@@ -78,11 +78,11 @@ class VBTObject(object):
         startPrice = self.o[halfLen]
         
         closePrice = self.c[len(self.c) -1 ]
-        pHighPrice = max(self.h[0:halfLen-1])
-        pLowPrice = min(self.l[0:halfLen-1])
+        pHighPrice = max(self.h[0:halfLen])
+        pLowPrice = min(self.l[0:halfLen])
         stride = (pHighPrice - pLowPrice)
         targetPrice = self.getPredictBuyPrice()
-        return {"High": max(self.h[halfLen:len(self.h)-1]), "Low": min(self.l[halfLen:len(self.h)-1]), "Stride": stride, "ModKValue": self.getAppliedKValue(),
+        return {"High": max(self.h[halfLen:len(self.h)]), "Low": min(self.l[halfLen:len(self.h)]), "Stride": stride, "ModKValue": self.getAppliedKValue(),
                 "TargetPrice": self.getPredictBuyPrice(), "FirstSellPrice": self.getFirstSellPrice(targetPrice), "SecondSellPrice": self.getTargetSellPrice(targetPrice), "StopPrice":self.getStopLossPrice(targetPrice), "Open": startPrice, "Close":closePrice, "Buy": 0, "FirstSell": 0, "SecondSell": 0, "StopLoss": 0,
                 "CloseSell": 0, "Balance": 0, "BuyIdx": 0, "SellIdx": 0, "StopIdx": 0}
 
