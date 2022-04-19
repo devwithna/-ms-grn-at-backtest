@@ -44,8 +44,9 @@ class VBTObject(object):
 
     def getAppliedKValue(self):
         halfLen = int(len(self.h)/2 - 1)
-        highPrice = max(self.h[0:halfLen])
-        lowPrice = min(self.l[0:halfLen])
+        
+        highPrice = max(self.h[0:halfLen]) if halfLen != 0 else self.h[0]
+        lowPrice = min(self.l[0:halfLen]) if halfLen != 0 else self.l[0]
 
         return tradeUtils.get_tick_size((highPrice - lowPrice) * self.k)
 
@@ -78,11 +79,13 @@ class VBTObject(object):
         startPrice = self.o[halfLen]
         
         closePrice = self.c[len(self.c) -1 ]
-        pHighPrice = max(self.h[0:halfLen-1])
-        pLowPrice = min(self.l[0:halfLen-1])
+        pHighPrice = max(self.h[0:halfLen-1]) if (halfLen - 1) != 0 else self.h[0]
+        pLowPrice = min(self.l[0:halfLen-1]) if (halfLen - 1) != 0 else self.l[0]
+        nextHighPrice = max(self.h[halfLen:len(self.h)-1]) if (halfLen - 1) != 0 else self.h[1]
+        nextLowPrice = max(self.h[halfLen:len(self.h)-1]) if (halfLen - 1) != 0 else self.l[1]
         stride = (pHighPrice - pLowPrice)
         targetPrice = self.getPredictBuyPrice()
-        return {"High": max(self.h[halfLen:len(self.h)-1]), "Low": min(self.l[halfLen:len(self.h)-1]), "Stride": stride, "ModKValue": self.getAppliedKValue(),
+        return {"High": nextHighPrice, "Low": nextLowPrice, "Stride": stride, "ModKValue": self.getAppliedKValue(),
                 "TargetPrice": self.getPredictBuyPrice(), "FirstSellPrice": self.getFirstSellPrice(targetPrice), "SecondSellPrice": self.getTargetSellPrice(targetPrice), "StopPrice":self.getStopLossPrice(targetPrice), "Open": startPrice, "Close":closePrice, "Buy": 0, "FirstSell": 0, "SecondSell": 0, "StopLoss": 0,
                 "CloseSell": 0, "Balance": 0, "BuyIdx": 0, "SellIdx": 0, "StopIdx": 0}
 
@@ -113,35 +116,7 @@ class VBTObject(object):
                 res["Buy"] = buyRes["balance"]
                 res["BuyIdx"] = idx
 
-            # Sell Condition - 1. Arrive target price
-            if (self.h[idx] > targetFirstSellPrice and self.isNotFirstSelled):
-                self.isNotFirstSelled = False
-
-            if (self.h[idx] > targetSecondSellPrice and not(self.isNotFirstSelled) and self.isNotSecondSelled):
-                
-                sellRes = self.calcSvc.calc_marketTradeSell(self.qty, targetSecondSellPrice)
-
-                print ("Activate Second : %f, %d" % (self.qty, sellRes["balance"]))
-
-                self.balance += sellRes["balance"]
-                self.isNotSecondSelled = False
-                self.qty = sellRes["qty"]
-                res["SecondSell"] = sellRes["balance"]
-                res["SellIdx"] = idx
-                break
-
-            # check stop loss
-            if (self.l[idx] < slPrice and not (self.isNotBuyed)):
-                print ("Idx : %d ST : %s Low Price %d :: StopLoss : %d" % (idx, self.st[idx], self.l[idx], slPrice))
-                
-                sellRes = self.calcSvc.calc_marketTradeSell(self.qty, slPrice)
-                print ("Activate Stoploss : %f, %d" % (self.qty, sellRes["balance"]))
-                self.balance += sellRes["balance"]
-                res["StopLoss"] = sellRes["balance"]
-                res["StopIdx"] = idx
-                break
-
-            if (idx == len(self.h) - 1 and (self.isNotFirstSelled or self.isNotSecondSelled) and not(self.qty == 0)):
+            if (idx == len(self.h) - 1 and not (self.isNotBuyed) and not(self.qty == 0)):
                 sellRes = self.calcSvc.calc_marketTradeSell(self.qty, self.c[-1])
                 res["CloseSell"] = sellRes["balance"]
                 res["StopIdx"] = idx
@@ -179,7 +154,7 @@ class BackTestingService(object):
         timeList = list(rVal['open'].keys())
 
         # Default TimeStride 1 Hour
-        stideTimeStamp = stride * 3600
+        stideTimeStamp = stride * (24 *3600)
         initTime = time.mktime(datetime.datetime.strptime(timeList[0], "%Y-%m-%dT%H:%M:%S").timetuple())
         stampIdx = 0;
         for idx in range(0, (days - 1)):
@@ -192,7 +167,7 @@ class BackTestingService(object):
             for timeItem in timeList[stampIdx:]:
                 stamp = time.mktime(datetime.datetime.strptime(timeItem, "%Y-%m-%dT%H:%M:%S").timetuple())
                 if (stamp >= initTime and stamp < dstTime):
-                    st.append(timeItem)            
+                    st.append(timeItem)
 
             ol = []
             cl = []
@@ -205,7 +180,6 @@ class BackTestingService(object):
                 hl.append(rVal['high'][timeItem])
                 ll.append(rVal['low'][timeItem])
                 vl.append(rVal['volume'][timeItem])
-
             initTime = initTime + stideTimeStamp
             
             vbtModel = VBTObject(st, ol, cl, hl, ll, vl, k, tt, ts, sl)

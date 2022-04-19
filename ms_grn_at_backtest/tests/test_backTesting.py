@@ -97,6 +97,6 @@ class BackTestingCase(unittest.TestCase):
     def test_CalcTradeModel_NewCase_StepSell(self):
         mockObj = backTestingService.BackTestingService(mockRequests.MockRequests())
         
-        res = mockObj.get_backTesting_result(3000000, 'KRW-ETH', 200, 0.5, 0.00, 0.02, 0.01, 24)
+        res = mockObj.get_backTesting_result(3000000, 'KRW-ETH', 200, 0.5, 0.0, 0.00, 0.0, 1)
    
         self.assertTrue(res['Mdd'] == -51.575300000000006, 'Mdd value is ' + str(res['Mdd']))
