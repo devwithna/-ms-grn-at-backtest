@@ -57,13 +57,13 @@ class VBTObject(object):
         return tradeUtils.get_tick_size(startPrice + modKValue)
 
     def getTargetSellPrice(self, startPrice):
-        return tradeUtils.get_tick_size(startPrice * (1 + self.tt + self.ts))
+        return tradeUtils.get_tick_size(startPrice * (1 + self.tt + self.ts)) if (self.tt + self.ts) !=0 else 0
 
     def getFirstSellPrice(self, startPrice):
-        return tradeUtils.get_tick_size(startPrice * (1 + self.tt))
+        return tradeUtils.get_tick_size(startPrice * (1 + self.tt)) if self.tt != 0 else 0 
 
     def getStopLossPrice(self, startPrice):
-        return tradeUtils.get_tick_size(startPrice * (1 - self.sl))
+        return tradeUtils.get_tick_size(startPrice * (1 - self.sl)) if self.sl != 0 else 0 
 
     def saveDebugRes(self, res):
         halfLen = int(len(self.h)/2)
